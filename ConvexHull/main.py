@@ -1,6 +1,9 @@
 import pygame
 import numpy as np
 import time
+import matplotlib.pyplot as plt
+
+
 
 # Initialize Pygame
 pygame.init()
@@ -28,6 +31,16 @@ def generate_points(n_points=5):
     points[:, 1] = points[:, 1] * height
     return points
 
+def generate_circular_points(n_points=5):
+    """Generate random points in 2D space."""
+    points = []
+    for i in range(n_points):
+        angle = np.random.rand() * 2 * np.pi
+        r = np.random.rand() * 200
+        x = width // 2 + r * np.cos(angle)
+        y = height // 2 + r * np.sin(angle)
+        points.append([x, y])
+    return np.array(points)
 
 def det(p1, p2, p3):
     """ 
@@ -37,7 +50,9 @@ def det(p1, p2, p3):
     """
     return (p2[0] - p1[0]) * (p3[1] - p1[1]) \
         -(p2[1] - p1[1]) * (p3[0] - p1[0])
+
 # Gift Wrapping (Jarvis March) Algorithm (Step by Step)
+# Andere Algorithmen sollten die selbe Signatur haben. Sie akzeptieren die Punkte, die aktuelle Hülle und die beiden Punkte p und q, und geben den nächsten Punkt zurück.
 def gift_wrapping_step(points, current_hull, p, q):
     """Compute the next point in the convex hull for the step visualization."""
     n = len(points)
@@ -74,65 +89,105 @@ def draw(points, hull, current_point=None, next_point=None):
     
     pygame.display.update()
 
-# Main function to step through the algorithm
-def visualize_convex_hull_pygame():
-
-    points = generate_points(n_points=50000)
+def convex_hull(n_points, algorithm, points, start_running=False):
+    if points == 'square':
+        points = generate_points(n_points=n_points)
+    elif points == 'circular':
+        points = generate_circular_points(n_points=n_points)
+    else:
+        raise ValueError('Invalid point distribution')
     n = len(points)
+    if algorithm == 'gift_wrapping':
+        step_function = gift_wrapping_step
+    else:
+        raise ValueError('Invalid algorithm')
     
     # Find the leftmost point to start the algorithm
     l = np.argmin(points[:, 0])
     p = l
     current_hull = [p]
-    
-    # Initial draw
-    draw(points, current_hull, current_point=p)
-    
+
     running = True
     next_step = False
     run = False
     q = (p + 1) % n
-
-    text = my_font.render('Simulation running', True, GREEN, BLUE)
-    textRect = text.get_rect()
-    # set the center of the rectangular object.
-    textRect.center = (width // 2, height // 2)
     
+    # Initial draw
+    draw(points, current_hull, current_point=p)
+
+    time1 = time.time()
     while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    next_step = True
-                    #print('Next step...')
-                if event.key == pygame.K_r:
-                    time1 = time.time()
-                    run = True
-                    next_step = True
-                    #print('Next step...')
+            if start_running:
+                run = True
+                next_step = True
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        next_step = True
+                        #print('Next step...')
+                    if event.key == pygame.K_r:
+                        run = True
 
-        if next_step:
-            #print('Computing next step...')
-            q = gift_wrapping_step(points, current_hull, p, q)
-            p = q
-            q = (p + 1) % n
-            
-            if p == l:  # When we return to the first point, the hull is complete
-                #running = False
-                #print('Hull complete!')
-                run = False
-                time2 = time.time()
-                print(f'Time: {time2 - time1}')
-            window.blit(text, textRect)
-            pygame.display.update()
-            if (not run):
-                draw(points, current_hull, current_point=p, next_point=q)
-            #next_step = False if run is not True else True  # Wait for the next key press
-            next_step = True if run else False
-            
-        #pygame.time.wait(100)
+            if next_step or run:
+                #print('Computing next step...')
+                q = step_function(points, current_hull, p, q)
+                p = q
+                q = (p + 1) % n
+                
+                if p == l:  # When we return to the first point, the hull is complete
+                    #running = False
+                    #print('Hull complete!')
+                    #run = False
+                    running = False
+                    
+                #window.blit(text, textRect)
+                #pygame.display.update()
+                if (not run):
+                #    pass
+                    draw(points, current_hull, current_point=p, next_point=q)
+                    next_step = False if run is not True else True  # Wait for the next key press
+                #next_step = True if run else False
+    time2 = time.time()
+    time_elapsed = time2 - time1
+    print(f'Time: {time_elapsed:.2f} seconds for {n} points.  KiloPoints per seconds : {(n/1000)/(time_elapsed):.2f}. Hull size: {len(current_hull)}')
+    #speeds.append((n,(n/1000)/(time_elapsed)))
+    return (n,time_elapsed, len(current_hull))
 
+
+speeds = []
+# Main function to step through the algorithm
+def benchmark_convex_hull(algorithm, points, max_points):
+    for i in (range(1000, max_points, 1000)):
+        n, time_elapsed, hull_size = convex_hull(n_points=i, algorithm=algorithm, points=points, start_running=True)
+        speeds.append((n,n/time_elapsed, hull_size))
+        
     pygame.quit()
+
+def plot_speeds(speeds, algorithm, points):
+    x, y, h = zip(*speeds)
+    fig, ax1 = plt.subplots()
+    ax1.set_title(f'{algorithm} - {points}')
+    ax1.set_xlabel('Number of Points')
+    ax1.set_ylabel('KiloPoints per seconds', color='blue')
+    ax1.plot(x, y, color='blue')
+    ax1.tick_params(axis='y', labelcolor='blue')
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('Hull Size', color='red')
+    ax2.plot(x, h, color='red')
+    ax2.tick_params(axis='y', labelcolor='red')
+    fig.tight_layout()
+    plt.savefig(f'{algorithm}_{points}.png')
+    plt.show()
+
+
 # Run the visualization
-visualize_convex_hull_pygame()
+algorithm = 'gift_wrapping'
+points = 'square'
+max_points = 20000
+
+#convex_hull(n_points=100, algorithm=algorithm, points=points, start_running=False)
+
+benchmark_convex_hull(algorithm, points, max_points)
+plot_speeds(speeds, algorithm, points)
