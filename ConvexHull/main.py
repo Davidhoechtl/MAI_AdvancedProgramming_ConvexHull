@@ -42,14 +42,28 @@ def generate_circular_points(n_points=5):
         points.append([x, y])
     return np.array(points)
 
+def import_points_from_file(file_path):
+    """Import points from a file with the given format."""
+    points = []
+    with open(file_path, 'r') as file:
+        n_points = int(file.readline().strip())  # Erste Zeile: Anzahl der Punkte
+        for line in file:
+            x, y = map(float, line.strip().split(','))  # Trenne die x- und y-Koordinaten
+            points.append([x, y])
+    return np.array(points)
+
 def det(p1, p2, p3):
     """ 
     > 0: CCW turn
     < 0 CW turn
     = 0: colinear
     """
-    return (p2[0] - p1[0]) * (p3[1] - p1[1]) \
-        -(p2[1] - p1[1]) * (p3[0] - p1[0])
+    return (p2[0] - p1[0]) * (p3[1] - p1[1]) -(p2[1] - p1[1]) * (p3[0] - p1[0]) #Kreuzprodukt der Vektoren p1p2 und p1p3
+
+def distance(p1, p2):
+    """Calculates the distance between 2 points"""
+    return (p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2
+
 
 # Gift Wrapping (Jarvis March) Algorithm (Step by Step)
 # Andere Algorithmen sollten die selbe Signatur haben. Sie akzeptieren die Punkte, die aktuelle Hülle und die beiden Punkte p und q, und geben den nächsten Punkt zurück.
@@ -57,10 +71,20 @@ def gift_wrapping_step(points, current_hull, p, q):
     """Compute the next point in the convex hull for the step visualization."""
     n = len(points)
     for i in range(n):
-        # If point i is more counterclockwise than current q, update q
-        if det(points[q], points[p], points[i]) > 0:
+        #draw(points, current_hull, current_point=p, next_point=i) #für bessere Visualisierung
+        #pygame.time.delay(500) #für bessere Visualisierung
+
+           # Berechne das Kreuzprodukt
+        orientation = det(points[p], points[q], points[i])
+
+        # Wenn Punkt i gegen den Uhrzeigersinn von Punkt q liegt, aktualisiere q
+        if orientation > 0:
             q = i
-    #print(f'Next point: {q}')
+        # Wenn Punkt i kollinear mit p und q ist, wähle den weiter entfernten Punkt
+        elif orientation == 0:
+            if distance(points[p], points[i]) > distance(points[p], points[q]):#
+                q = i
+         
     current_hull.append(q)
     return q
 
@@ -89,11 +113,15 @@ def draw(points, hull, current_point=None, next_point=None):
     
     pygame.display.update()
 
-def convex_hull(n_points, algorithm, points, start_running=False):
-    if points == 'square':
+def convex_hull(n_points, algorithm, points, start_running=False, file_path=None): #Thomas: neu: , file_path=None
+    if points == 'square': 
         points = generate_points(n_points=n_points)
     elif points == 'circular':
         points = generate_circular_points(n_points=n_points)
+    elif points == 'file': 
+        if file_path is None: 
+            raise ValueError("No file path provided for importing points") 
+        points = import_points_from_file(file_path)  
     else:
         raise ValueError('Invalid point distribution')
     n = len(points)
@@ -184,10 +212,16 @@ def plot_speeds(speeds, algorithm, points):
 
 # Run the visualization
 algorithm = 'gift_wrapping'
-points = 'square'
+points = 'circular'
 max_points = 20000
 
-#convex_hull(n_points=100, algorithm=algorithm, points=points, start_running=False)
+#convex_hull(n_points=5, algorithm=algorithm, points=points, start_running=False)
 
-benchmark_convex_hull(algorithm, points, max_points)
-plot_speeds(speeds, algorithm, points)
+#benchmark_convex_hull(algorithm, points, max_points)
+#plot_speeds(speeds, algorithm, points)
+
+####file
+points = 'file'
+#file_path = 'input100k.txt'
+file_path = 'square_10000.txt'
+convex_hull(n_points=19, algorithm=algorithm, points=points, start_running=True, file_path=file_path)
