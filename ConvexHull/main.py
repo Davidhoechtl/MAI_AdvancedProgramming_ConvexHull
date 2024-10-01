@@ -44,6 +44,37 @@ def generate_circular_points(n_points=5):
         points.append([x, y])
     return np.array(points)
 
+def generate_ring_points(n_points=5):
+    """Generate random points on a ring in 2D space."""
+    points = []
+    for i in range(n_points):
+        angle = np.random.rand() * 2 * np.pi
+        r = 200
+        x = width // 2 + r * np.cos(angle)
+        y = height // 2 + r * np.sin(angle)
+        points.append([x, y])
+    return np.array(points)
+
+def generate_rectangular_ring_points(n_points=5):
+    """Generate random points on the sides of a rectangle in 2D space."""
+    points = []
+    for i in range(n_points):
+        side = np.random.randint(4)
+        if side == 0:  # Top side
+            x = np.random.rand() * (width*0.9)
+            y = height*0.1
+        elif side == 1:  # Right side
+            x = width*0.9
+            y = np.random.rand() * (height*0.9)
+        elif side == 2:  # Bottom side
+            x = np.random.rand() * (width*0.9)
+            y = height*0.9
+        else:  # Left side
+            x = width*0.1
+            y = np.random.rand() * height*0.9
+        points.append([x, y])
+    return np.array(points)
+
 def import_points_from_file(file_path):
     """Import points from a file with the given format."""
     points = []
@@ -109,6 +140,10 @@ def init_Points(points, n_points, file_path = None):
         points = generate_points(n_points=n_points)
     elif points == 'circular':
         points = generate_circular_points(n_points=n_points)
+    elif points == 'ring':
+        points = generate_ring_points(n_points=n_points)
+    elif points == 'square-ring':
+        points = generate_rectangular_ring_points(n_points=n_points)
     elif points == 'file':
         if file_path is None:
             raise ValueError("No file path provided for importing points")
@@ -181,7 +216,7 @@ def convex_hull_andrews(n_points, points, start_running=False, file_path=None):
     n = len(points)
     step_function = AndrewsAlgo.andrews_hull_step
 
-    points = np.sort(points, axis=0)  # sort points ascending
+    points = np.array(sorted(points, key=lambda x: x[0])) # sort by x value (from left to right)
 
     # Find the leftmost point to start the algorithm
     current = 0
@@ -242,7 +277,7 @@ def convex_hull_andrews(n_points, points, start_running=False, file_path=None):
     time2 = time.time()
     time_elapsed = time2 - time1
 
-    top_hull.append(bottom_hull)
+    top_hull.extend(bottom_hull)
 
     print(
         f'Time: {time_elapsed:.2f} seconds for {n} points.  KiloPoints per seconds : {(n / 1000) / (time_elapsed):.2f}. Hull size: {len(top_hull)}')
@@ -252,15 +287,19 @@ def convex_hull_andrews(n_points, points, start_running=False, file_path=None):
 
 speeds = []
 # Main function to step through the algorithm
-def benchmark_convex_hull(algorithm, points, max_points):
-    for i in (range(1000, max_points, 1000)):
+def benchmark_convex_hull(algorithm, points, max_points, step_size=1000):
+    results = []
+    for i in (range(1000, max_points, step_size)):
         if algorithm == "andrews":
-            n, time_elapsed, hull_size = convex_hull_andrews(n_points=i, points=points, start_running=True)
-            speeds.append((n, n / time_elapsed, hull_size))
+            hull_function = convex_hull_andrews
         else:
-            n, time_elapsed, hull_size = convex_hull_giftwarpping(n_points=i, points=points, start_running=True)
-            speeds.append((n, n / time_elapsed, hull_size))
-    pygame.quit()
+            hull_function = convex_hull_giftwarpping
+       
+        n, time_elapsed, hull_size = hull_function(n_points=i, points=points, start_running=True)
+        results.append((n, time_elapsed, hull_size))
+        speeds.append((n, n / time_elapsed, hull_size))        
+    #pygame.quit()
+    return (results)
 
 def plot_speeds(speeds, algorithm, points):
     x, y, h = zip(*speeds)
@@ -281,13 +320,24 @@ def plot_speeds(speeds, algorithm, points):
 
 # Run the visualization
 algorithm = 'andrews'
-points = 'square'
-max_points = 20000
+points = 'square-ring'
+max_points = 500001
 
-#convex_hull_giftwarpping(n_points=5, points=points, start_running=False)
-convex_hull_andrews(n_points=20, points=points, start_running=False)
+#convex_hull_giftwarpping(n_points=300, points=points, start_running=False, file_path=None)
+#convex_hull_andrews(n_points=40, points=points, start_running=False, file_path=None)
+import itertools
+for algo, points in itertools.product(['andrews', 'giftwrapping'], ['circular', 'square', 'ring']):
+#for algo, points in itertools.product(['giftwrapping'], ['ring']):
+    print(f'Running {algo} for {points} points')
+    if algo == "giftwrapping" and points == "ring":
+        continue
+        speeds = benchmark_convex_hull(algo, points, 10001, 500)
+    else:
+        speeds = benchmark_convex_hull(algo, points, max_points, 10000)
+    with open(f'{algo}_{points}_results.csv', 'w') as file:
+        for speed in speeds:
+            file.write(f'{speed[0]},{speed[1]},{speed[2]}\n')
 
-#benchmark_convex_hull(algorithm, points, max_points)
 #plot_speeds(speeds, algorithm, points)
 
 ####file
@@ -295,3 +345,8 @@ convex_hull_andrews(n_points=20, points=points, start_running=False)
 #file_path = 'input100k.txt'
 #file_path = 'square_10000.txt'
 #convex_hull_giftwarpping(n_points=19, points=points, start_running=True, file_path=file_path)
+
+
+#tests to run:
+# beide algorthmen
+# circular und square, ring, square-ring
